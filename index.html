@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>সিম্পল ক্যালকুলেটর</title>
+  <style>
+    :root{
+      --bg: #0f1720;
+      --panel: #111827;
+      --accent: #ef4444; /* লাল ট্রেন্ড লাইন পছন্দ থাকায় */
+      --btn: #1f2937;
+      --btn-light: #374151;
+      --text: #e6eef8;
+      --secondary: #9ca3af;
+      --display-height: 120px;
+    }
+    *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+    body{
+      margin:0; font-family: system-ui, "Segoe UI", Roboto, "Noto Sans", "Hind", Arial;
+      background: linear-gradient(180deg, #071022 0%, #091427 100%);
+      color:var(--text);
+      min-height:100vh;
+      display:flex; align-items:center; justify-content:center;
+      padding:18px;
+    }
+    .calculator{
+      width:100%;
+      max-width:420px;
+      border-radius:16px;
+      overflow:hidden;
+      box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+      background: linear-gradient(180deg, var(--panel), #0b1220);
+    }
+    .display{
+      padding:14px;
+      height:var(--display-height);
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:8px;
+    }
+    .expr{
+      font-size:18px;
+      color:var(--secondary);
+      text-align:right;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      padding-right:6px;
+    }
+    .result{
+      font-size:34px;
+      font-weight:600;
+      text-align:right;
+      padding-right:6px;
+      word-break:break-all;
+    }
+
+    .keys{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:10px;
+      padding:12px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+    }
+    button.key{
+      background:var(--btn);
+      border: none;
+      border-radius:12px;
+      padding:18px 12px;
+      font-size:20px;
+      color:var(--text);
+      box-shadow: inset 0 -4px 0 rgba(0,0,0,0.25);
+      user-select:none;
+    }
+    button.key:active{ transform: translateY(2px); box-shadow:none; }
+
+    /* special styling for operator / important keys */
+    .key.op{ background: linear-gradient(180deg,#111827,#0b1220); color:var(--accent); font-weight:700; }
+    .key.wide{ grid-column: span 2; }
+    .key.clear{ background: linear-gradient(180deg,#7f1d1d,#b91c1c); color:#fff; }
+    .key.equal{ background: linear-gradient(180deg,#059669,#047857); color:#fff; font-size:22px; font-weight:700; }
+    @media (max-width:420px){
+      :root{ --display-height:110px;}
+      .result{font-size:28px;}
+      button.key{padding:16px 10px; font-size:18px;}
+    }
+  </style>
+</head>
+<body>
+  <div class="calculator" role="application" aria-label="Calculator">
+    <div class="display">
+      <div id="expr" class="expr" aria-hidden="false">&nbsp;</div>
+      <div id="result" class="result">0</div>
+    </div>
+
+    <div class="keys" role="group" aria-label="Calculator keys">
+      <button class="key clear" data-action="clear">AC</button>
+      <button class="key" data-action="back">⌫</button>
+      <button class="key op" data-value="%">%</button>
+      <button class="key op" data-value="÷">÷</button>
+
+      <button class="key" data-value="7">7</button>
+      <button class="key" data-value="8">8</button>
+      <button class="key" data-value="9">9</button>
+      <button class="key op" data-value="×">×</button>
+
+      <button class="key" data-value="4">4</button>
+      <button class="key" data-value="5">5</button>
+      <button class="key" data-value="6">6</button>
+      <button class="key op" data-value="-">−</button>
+
+      <button class="key" data-value="1">1</button>
+      <button class="key" data-value="2">2</button>
+      <button class="key" data-value="3">3</button>
+      <button class="key op" data-value="+">+</button>
+
+      <button class="key wide" data-value="0">0</button>
+      <button class="key" data-value=".">.</button>
+      <button class="key equal" data-action="equals">=</button>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const exprEl = document.getElementById('expr');
+      const resultEl = document.getElementById('result');
+      const keys = document.querySelectorAll('.key');
+
+      let expr = ''; // visible expression string
+
+      function updateDisplay(){
+        exprEl.textContent = expr || '\u00A0'; // non-breaking space when empty
+        resultEl.textContent = expr ? expr : '0';
+      }
+
+      function sanitizeForEval(s){
+        // Replace unicode operators with JS equivalents
+        let s2 = s.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-');
+        // Replace percentage: convert 'number%' to (number/100)
+        // Simple approach: replace every '%' with '/100'
+        s2 = s2.replace(/%/g, '/100');
+        return s2;
+      }
+
+      function isValidExpression(s){
+        // allow digits, spaces, + - * / ( ) . and %
+        return /^[0-9+\-*/().\s%]+$/.test(s.replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-'));
+      }
+
+      function calculate(){
+        if(!expr) return;
+        const prepared = sanitizeForEval(expr);
+        if(!isValidExpression(prepared)){
+          resultEl.textContent = "Error";
+          return;
+        }
+        try{
+          // Using Function as a safer alternative to eval in this local context.
+          // Still: do not run untrusted expressions from external sources.
+          const value = Function('"use strict"; return (' + prepared + ')')();
+          // format result: remove trailing .0 for integers, limit decimals
+          const num = Number(value);
+          if(!isFinite(num) || isNaN(num)){
+            resultEl.textContent = "Error";
+            return;
+          }
+          const formatted = (Math.round((num + Number.EPSILON) * 1e12) / 1e12).toString();
+          resultEl.textContent = formatted;
+          expr = String(formatted); // allow chaining calculations
+          exprEl.textContent = expr;
+        }catch(e){
+          resultEl.textContent = "Error";
+        }
+      }
+
+      function onButtonPress(btn){
+        const val = btn.getAttribute('data-value');
+        const action = btn.getAttribute('data-action');
+
+        if(action === 'clear'){
+          expr = '';
+          updateDisplay();
+          return;
+        }
+        if(action === 'back'){
+          expr = expr.slice(0, -1);
+          updateDisplay();
+          return;
+        }
+        if(action === 'equals'){
+          calculate();
+          return;
+        }
+
+        // value buttons
+        if(val === '.'){
+          // prevent multiple dots in the current number segment
+          // find last number segment
+          const parts = expr.split(/[\+\-\×\÷\*\/]/);
+          const last = parts[parts.length - 1] || '';
+          if(last.includes('.')) return; // ignore
+          if(last === '') expr += '0'; // allow ".5" as "0.5"
+        }
+        // prevent consecutive operators (except minus for negative numbers if at start)
+        const operators = ['+','-','×','÷','*','/','%'];
+        const lastChar = expr.slice(-1);
+        if(operators.includes(val)){
+          if(!expr && val !== '-') return; // only allow leading minus
+          if(operators.includes(lastChar)){
+            // replace previous operator with new (except percent: 'number%%' shouldn't happen)
+            expr = expr.slice(0,-1) + val;
+            updateDisplay();
+            return;
+          }
+        }
+
+        expr += val;
+        updateDisplay();
+      }
+
+      // attach listeners (touch/click)
+      keys.forEach(k => {
+        k.addEventListener('click', () => onButtonPress(k));
+        k.addEventListener('touchstart', (e) => { e.preventDefault(); onButtonPress(k); }, {passive:false});
+      });
+
+      // keyboard support (optional)
+      window.addEventListener('keydown', (e) => {
+        const key = e.key;
+        if(/[0-9]/.test(key)) onButtonPress({ getAttribute: () => key });
+        else if(key === 'Enter' || key === '=') onButtonPress({ getAttribute: () => null, getAttribute: (n)=> n === 'data-action' ? 'equals' : null });
+        else if(key === 'Backspace') onButtonPress({ getAttribute: () => null, getAttribute: (n)=> n === 'data-action' ? 'back' : null });
+        else if(key === 'Escape') onButtonPress({ getAttribute: () => null, getAttribute: (n)=> n === 'data-action' ? 'clear' : null });
+        else if(key === '.') onButtonPress({ getAttribute: () => '.', getAttribute: (n)=> null });
+        else if(key === '+') onButtonPress({ getAttribute: () => '+', getAttribute: (n)=> null });
+        else if(key === '-') onButtonPress({ getAttribute: () => '-', getAttribute: (n)=> null });
+        else if(key === '*') onButtonPress({ getAttribute: () => '×', getAttribute: (n)=> null });
+        else if(key === '/') onButtonPress({ getAttribute: () => '÷', getAttribute: (n)=> null });
+      });
+
+      // initial render
+      updateDisplay();
+    })();
+  </script>
+</body>
+</html>
